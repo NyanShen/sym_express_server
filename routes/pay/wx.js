@@ -2,6 +2,8 @@ const express = require('express')
 const request = require('request')
 const memoryCache = require('memory-cache')
 const config = require('./config')
+const util = require('./../../util/index')
+const common = require('./../common/index')
 const router = express.Router()
 
 router.get('/redirect', function (req, res) {
@@ -13,29 +15,21 @@ router.get('/redirect', function (req, res) {
     res.redirect(authrize_url)
 })
 
-router.get('/getOpenId', function (req, res) {
+router.get('/getOpenId', async function (req, res) {
     //http://cm.sym.com/api/wechat/getOpenId?code=CODE&state=STATE
     const code = req.query.code;
-    console.log('code:',code)
-    const token_url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${config.wx.appId}&secret=${config.wx.appSecret}&code=${code}&grant_type=authorization_code`;
     if (!code) {
-        res.json({
-            code: 1001,
-            data: '',
-            message: '当前未获取到授权码'
-        })
+        res.json(util.handleFail('当前未获取到授权码'))
     } else {
-        request.get(token_url, function (err, response, body) {
-            if (!err && response.statusCode == 200) {
-                const data = JSON.parse(body)
-                console.log('body:', body)
-                const expire_time = 1000 * 60 * 1
-                res.cookie('openId', data.openId, { maxAge: expire_time })
-                res.redirect(memoryCache.get('redirect_url'))
-            } else {
-
-            }
-        })
+        const result = await common.getAccessToken(code);
+        if (result.code == 0) {
+            const data = result.data;
+            const expire_time = 1000 * 60 * 1
+            res.cookie('openId', data.openId, { maxAge: expire_time })
+            res.redirect(memoryCache.get('redirect_url'))
+        }else {
+            res.json(result)
+        }
     }
 })
 module.exports = router
